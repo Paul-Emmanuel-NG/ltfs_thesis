@@ -34,10 +34,13 @@ import pandas as pd
 # =========================
 # HARD-CODED SETTINGS
 # =========================
+CORE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CORE_DIR.parents[1]
+RAW_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "raw"
 
 # Run from your experiment folder (same folder as osm.sumocfg)
-SUMO_CFG_IN = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\osm.sumocfg"
-NET_FILE = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\yanan_elevated.net.xml"
+SUMO_CFG_IN = str(PROJECT_ROOT / "sim" / "network" / "osm.sumocfg")
+NET_FILE = str(PROJECT_ROOT / "sim" / "network" / "yanan_elevated.net.xml")
 
 # Uncongested via departure stretching (recommended 10–20)
 DEPART_STRETCH = 10.0
@@ -46,16 +49,16 @@ DEPART_STRETCH = 10.0
 SIM_END_BUFFER = 20000.0
 
 # Where to write policy-conditioned free-flow references
-OUT_MP = "freeflow_mp.csv"
-OUT_LTFS = "freeflow_ltfs.csv"
+OUT_MP = str(RAW_OUTPUT_DIR / "freeflow_mp.csv")
+OUT_LTFS = str(RAW_OUTPUT_DIR / "freeflow_ltfs.csv")
 
 # Temporary trip logs produced by the controllers
-TMP_TRIPS_MP = "_freeflow_mp_trips_tmp.csv"
-TMP_TRIPS_LTFS = "_freeflow_ltfs_trips_tmp.csv"
+TMP_TRIPS_MP = str(RAW_OUTPUT_DIR / "_freeflow_mp_trips_tmp.csv")
+TMP_TRIPS_LTFS = str(RAW_OUTPUT_DIR / "_freeflow_ltfs_trips_tmp.csv")
 
 # Controller modules (local files in the folder)
-BASELINE_CONTROLLER_FILE = "mp_single_baseline_wt.py"
-LTFS_CONTROLLER_FILE = "mp_ltfs1.0.1_wt.py"
+BASELINE_CONTROLLER_FILE = str(CORE_DIR / "mp_single_baseline_wt.py")
+LTFS_CONTROLLER_FILE = str(CORE_DIR / "mp_ltfs1.0.1_wt.py")
 
 
 # =========================
@@ -223,9 +226,13 @@ def _triplog_to_freeflow_csv(trips_csv: str, out_csv: str) -> None:
 # =========================
 
 def run():
+    RAW_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
     sumocfg_in = SUMO_CFG_IN
     if not Path(sumocfg_in).exists():
-        raise FileNotFoundError(f"Could not find {sumocfg_in}. Run this from the folder containing it.")
+        raise FileNotFoundError(f"SUMO config not found: {sumocfg_in}")
+    if not Path(NET_FILE).exists():
+        raise FileNotFoundError(f"SUMO net file not found: {NET_FILE}")
 
     # Read original route files
     _, route_files = _read_sumocfg_paths(sumocfg_in)
@@ -235,8 +242,14 @@ def run():
     # Stretch departures
     stretched_files = []
     latest_depart = 0.0
+    sumocfg_dir = Path(sumocfg_in).resolve().parent
     for rf in route_files:
-        tmp_rf, max_d = _stretch_route_file(rf, DEPART_STRETCH)
+        rf_path = Path(rf)
+        if not rf_path.is_absolute():
+            rf_path = (sumocfg_dir / rf_path).resolve()
+        if not rf_path.exists():
+            raise FileNotFoundError(f"Route file listed in {sumocfg_in} not found: {rf}")
+        tmp_rf, max_d = _stretch_route_file(str(rf_path), DEPART_STRETCH)
         stretched_files.append(tmp_rf)
         if max_d > latest_depart:
             latest_depart = max_d

@@ -12,6 +12,7 @@ import csv
 import math
 import os
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import traci
 from sumolib import checkBinary
@@ -23,8 +24,12 @@ from route_key import make_route_key
 # ----------------
 # Configuration
 # ----------------
-SUMO_CFG = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\osm.sumocfg"
-NET_FILE = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\yanan_elevated.net.xml"
+CORE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CORE_DIR.parents[1]
+RAW_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "raw"
+
+SUMO_CFG = str(PROJECT_ROOT / "sim" / "network" / "osm.sumocfg")
+NET_FILE = str(PROJECT_ROOT / "sim" / "network" / "yanan_elevated.net.xml")
 
 USE_GUI = True
 STEP_LENGTH = 1.0
@@ -32,7 +37,7 @@ MIN_GREEN = 10.0
 MAX_SIM_TIME = 7200.0
 
 # Trip log for WT metrics (matches metrics_wt_all.py expectations)
-LOG_CSV = "baseline_wt_trips.csv"
+LOG_CSV = str(RAW_OUTPUT_DIR / "baseline_wt_trips.csv")
 
 # Auto footprint selection (Yan'an interchange)
 YANAN_ANCHOR_TLS = "cluster_479314640_850287516"
@@ -328,6 +333,13 @@ def _assert_tls_config_is_valid(tls_config: dict):
 # Main
 # ----------------
 def run():
+    RAW_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not Path(SUMO_CFG).exists():
+        raise FileNotFoundError(f"SUMO config not found: {SUMO_CFG}")
+    if not Path(NET_FILE).exists():
+        raise FileNotFoundError(f"SUMO net file not found: {NET_FILE}")
+
     sumo_binary = checkBinary("sumo-gui" if USE_GUI else "sumo")
     traci.start([
         sumo_binary,
