@@ -1,12 +1,18 @@
-# Project guidance
+# AGENTS.md
 
-## Goal
-Support thesis simulations for a layered traffic flow system using SUMO and Python.
+## Project goal
+This repository contains thesis simulations for a layered traffic flow system using SUMO and Python.
 
-## Rules for edits
-- Do not change the research logic unless explicitly asked.
-- Prefer minimal, reviewable edits.
-- Replace hard-coded paths with relative paths.
-- Keep generated tables in `outputs/raw/` or `outputs/tables/`.
-- Keep generated figures in `outputs/figures/`.
-- Explain changed files after each task.
+## Working rules
+- Do not change research logic unless explicitly asked.
+- Prefer minimal, high-confidence edits.
+- Preserve controller structure unless the task is specifically to align code with the paper.
+- Keep filenames stable unless a rename is required.
+- Save raw CSV outputs in `outputs/raw/`.
+- Save plots in `outputs/figures/`.
+- When working on controller logic, read `notes/paper_controller_spec.md` first.
+- Distinguish clearly between:
+  - code bugs
+  - portability/workflow issues
+  - paper-to-code mismatches
+- Do not optimize results unfairly. Any performance-improving edit must preserve fair comparison with the baseline.
