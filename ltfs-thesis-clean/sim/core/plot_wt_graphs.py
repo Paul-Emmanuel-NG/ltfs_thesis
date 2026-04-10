@@ -10,19 +10,28 @@
 # And that metrics_wt_all.py is in the same folder.
 
 import statistics
+from pathlib import Path
 import matplotlib.pyplot as plt
 
 from metrics_wt_all import (
     load_free_flow,
     load_trips,
     percentile,
-    FREE_FLOW_CSV,
-    BASELINE_CSV,
-    LTFS_CSV,
+    FREEFLOW_MP_CSV,
+    BASELINE_TRIPS_CSV,
+    LTFS_TRIPS_CSV,
+    PROJECT_ROOT,
 )
+
+FIGURES_DIR = PROJECT_ROOT / "outputs" / "figures"
+FREE_FLOW_CSV = FREEFLOW_MP_CSV
+BASELINE_CSV = BASELINE_TRIPS_CSV
+LTFS_CSV = LTFS_TRIPS_CSV
 
 
 def main():
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+
     # 1) Load free-flow map (routeID -> TT_freeflow)
     free_map = load_free_flow(FREE_FLOW_CSV)
     if not free_map:
@@ -62,7 +71,7 @@ def main():
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("wt_histogram.png")
+    plt.savefig(FIGURES_DIR / "wt_histogram.png")
 
     # 5) Graph 2: bar chart of mean WT and 95th percentile WT
     configs = ["Baseline", "LTFS"]
@@ -81,7 +90,7 @@ def main():
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("wt_summary_bars.png")
+    plt.savefig(FIGURES_DIR / "wt_summary_bars.png")
 
     # 6) Show plots on screen
     plt.show()

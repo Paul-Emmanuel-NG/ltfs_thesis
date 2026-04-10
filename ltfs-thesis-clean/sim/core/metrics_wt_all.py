@@ -18,17 +18,22 @@ from __future__ import annotations
 import csv
 import math
 import statistics
+from pathlib import Path
 from typing import Dict, Tuple, List
 
 
 # ----------------
 # HARD-CODED INPUTS
 # ----------------
-FREEFLOW_MP_CSV = "freeflow_mp.csv"
-FREEFLOW_LTFS_CSV = "freeflow_ltfs.csv"
+CORE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CORE_DIR.parents[1]
+RAW_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "raw"
 
-BASELINE_TRIPS_CSV = "baseline_wt_trips.csv"
-LTFS_TRIPS_CSV = "mp_ltfs1.0.1_wt_trips.csv"
+FREEFLOW_MP_CSV = str(RAW_OUTPUT_DIR / "freeflow_mp.csv")
+FREEFLOW_LTFS_CSV = str(RAW_OUTPUT_DIR / "freeflow_ltfs.csv")
+
+BASELINE_TRIPS_CSV = str(RAW_OUTPUT_DIR / "baseline_wt_trips.csv")
+LTFS_TRIPS_CSV = str(RAW_OUTPUT_DIR / "mp_ltfs1.0.1_wt_trips.csv")
 
 
 # ----------------

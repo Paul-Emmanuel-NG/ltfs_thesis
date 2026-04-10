@@ -20,6 +20,7 @@ import math
 import os
 import xml.etree.ElementTree as ET
 from statistics import median
+from pathlib import Path
 
 import traci
 import sumolib
@@ -32,15 +33,19 @@ from route_key import make_route_key
 # ----------------
 # Configuration
 # ----------------
-SUMO_CFG = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\osm.sumocfg"
-NET_FILE = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\yanan_elevated.net.xml"
+CORE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CORE_DIR.parents[1]
+RAW_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "raw"
+
+SUMO_CFG = str(PROJECT_ROOT / "sim" / "network" / "osm.sumocfg")
+NET_FILE = str(PROJECT_ROOT / "sim" / "network" / "yanan_elevated.net.xml")
 
 USE_GUI = True
 STEP_LENGTH = 1.0
 MIN_GREEN = 10.0
 MAX_SIM_TIME = 7200.0
 
-LOG_CSV = "mp_ltfs1.0.1_wt_trips.csv"
+LOG_CSV = str(RAW_OUTPUT_DIR / "mp_ltfs1.0.1_wt_trips.csv")
 
 # Auto footprint selection (Yan'an interchange)
 YANAN_ANCHOR_TLS = "cluster_479314640_850287516"
@@ -524,6 +529,13 @@ def maybe_reroute_denied_vehicle(veh_id: str):
 # Main
 # ----------------
 def run():
+    RAW_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not Path(SUMO_CFG).exists():
+        raise FileNotFoundError(f"SUMO config not found: {SUMO_CFG}")
+    if not Path(NET_FILE).exists():
+        raise FileNotFoundError(f"SUMO net file not found: {NET_FILE}")
+
     # Decide footprint TLS IDs (from net.xml). TraCI filtering happens after start().
     if TLS_IDS_ENV:
         footprint_tls = [x.strip() for x in TLS_IDS_ENV.split(",") if x.strip()]
