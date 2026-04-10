@@ -1,294 +1,317 @@
 # Paper controller specification
 
 ## Purpose
-This note is the text source of truth for Codex when auditing paper-to-code alignment.
+This file is the Paper 1 source-of-truth specification for code alignment and audit.
 
-Important:
-- Treat this file as a **working specification** for the current thesis repo.
-- Items marked **Confirmed in code** are grounded in the current implementation.
-- Items marked **Verify against paper** should be checked against the actual thesis wording before any claim is made in the paper.
+The goal of Paper 1 is not to introduce RL. It is to establish a reproducible non-RL LTFS baseline on a real-city Shanghai subnetwork with clear standard-vs-novel separation, strong baselines, and a simulation protocol that later papers can build on.
 
 ---
 
-## 1. Baseline controller
+## 1. Network and LTFS structure
 
-### Intended role
-The baseline is a **single-layer Max-Pressure traffic signal controller** on the surface network.
+### Two-layer network
+The modeled road network is a directed graph with:
+- surface layer `S`: signalized urban streets
+- express layer `X`: higher-speed limited-access links
+- gate nodes connecting the two layers
 
-### Confirmed in code
-- Phase selection is based on **Max-Pressure**.
-- Movement pressure is defined as:
+Vehicles may:
+- enter the express layer only at designated entry gates
+- exit only at defined exit gates
+- otherwise remain layer-consistent
 
-  `P = q_up - Σ_i (rho_i * q_down_i)`
+### Layer consistency
+Feasible LTFS paths must respect:
+- Surface -> Express -> Surface
+- no illegal jumps between layers
+- no express access except through gates
 
-- Phase pressure is the sum of movement pressures.
-- The selected phase is the phase with the highest pressure.
-- If movement weights are not provided, phase selection is effectively standard unweighted Max-Pressure.
-
-### Current implementation notes
-- `standard_blocks.py` supports an optional movement weight `w`.
-- In the active LTFS controller path, movement weight `w` is injected for PWMP-enabled phase selection.
-- The baseline controller remains plain Max-Pressure unless a controller explicitly injects weights.
-
-### Verify against paper
-- Whether the paper defines the baseline strictly as plain Max-Pressure or as a stronger baseline variant.
-- Whether the baseline should include dynamic rerouting or only signal control.
-
----
-
-## 2. LTFS controller
-
-### Intended role
-The LTFS controller extends the baseline by introducing a logical **express / elevated layer** and a gate decision for admission into that layer.
-
-### Confirmed in code
-- The surface network remains controlled by Max-Pressure.
-- An **express layer** is auto-detected from the network file.
-- **Gate edges** are auto-detected as surface edges feeding into the express layer.
-- Vehicles approaching gate edges are evaluated for admission.
-- Denied vehicles may be rerouted away from the express layer.
-- Admitted vehicles currently receive an express-layer speed-factor bonus while on express edges.
-
-### Current implementation notes
-- Express edges are inferred from network geometry and speed:
-  - high speed
-  - elevated z-value
-  - connected express components retained
-- Gate decisions are evaluated periodically, not continuously every simulation micro-step.
-- The controller keeps a global scalar express occupancy estimate `o_X`.
-- Express speed bonus is **optional** and **OFF by default** for Paper 1 default runs; if enabled, it is an ablation toggle.
-
-### Verify against paper
-- Whether the paper intends a logical express layer only, or a more explicit multi-layer infrastructure abstraction.
-- Whether the express speed-factor bonus is explicitly justified in the paper or is only an implementation convenience.
-- Whether denied-vehicle rerouting is part of the intended LTFS logic or an added heuristic.
+### Baseline scope
+Paper 1 is strictly non-RL.
+It establishes:
+- signal baselines
+- routing baselines
+- gating baselines
+- evaluation methodology
 
 ---
 
-## 3. TST logic
+## 2. Vehicle urgency model
 
-### Intended meaning
-TST is a **Time Saving Threshold** admission rule.
+Each vehicle has combined urgency:
 
-### Confirmed in code
-- Estimated time saving is:
-
-  `ΔT = τ_surface - τ_express`
-
-- Admission rule is:
-
-  `admit = (ΔT >= Θ) and (o_X <= κ)`
+`u_v(t) = λ u_class_v + (1 - λ) u_route_v(t)`
 
 where:
-- `Θ` is the minimum required time saving threshold
-- `κ` is the express occupancy cap
-- `o_X` is express occupancy in `[0, 1]`
+- `u_class_v` is a normalized class urgency from vehicle type
+- `u_route_v(t)` is normalized route-based urgency from remaining route length
+- `λ ∈ [0,1]`
 
-### Current implementation notes
-- Positive `ΔT` means the express option is beneficial.
-- `ΔT` is currently estimated from simplified surface and express travel-time approximations.
-- The current implementation appears to use constant free-flow-like speed assumptions for the estimate, not a full predictive congestion model.
+### Route urgency
+Route urgency is based on remaining route length:
+`u_route_v(t) = clip[0,1](L_rem_v(t) / L_ref)`
 
-### Verify against paper
-- Whether the paper defines `τ_surface` and `τ_express` using:
-  - free-flow estimates,
-  - current measured traffic state,
-  - or a richer prediction model.
-- Whether `Θ` should be fixed, scenario-dependent, or class-dependent.
+### Mean upstream urgency for a movement
+For movement `m`, upstream urgency is the mean urgency of vehicles currently queued on that movement:
+- if the movement queue is empty, upstream urgency is 0
 
 ---
 
-## 4. UWA logic
+## 3. Surface-layer signal controllers
 
-### Intended meaning
-UWA appears to be an urgency-weighted admission mode.
+Paper 1 baseline set includes four surface-layer controllers:
+1. Fixed Time (Webster style)
+2. Actuated
+3. Classical Max Pressure (MP)
+4. Priority-Weighted Max Pressure (PWMP)
 
-### Confirmed in code
-- UWA-related helper concepts exist in the repo, but UWA is not active in the default Paper 1 runtime path.
+### Classical Max Pressure
+For each movement `m` at intersection `i`:
 
-### Current implementation notes
-- The current repo contains urgency helper functions in `ltfs_blocks.py`.
-- For **Paper 1 default runs**, UWA is **optional** and **inactive by default**.
-- Any UWA-enabled run must be treated as an **explicit ablation**, not the default Paper 1 controller.
+`π_i,m(t) = q_i,m(t) - Σ_{e in down(m)} ρ_m,e q_e(t)`
 
-### Verify against paper
-- Whether UWA is a required part of the paper contribution or only an optional extension.
-- The exact urgency formula.
-- Whether urgency should affect only gate admission or also signal control.
+Classical phase pressure:
 
----
+`P_i^MP(φ,t) = Σ_{m in mov(φ)} π_i,m(t)`
 
-## 5. Priority-weighted Max-Pressure
+Selected phase:
 
-### Intended meaning
-Priority-weighted Max-Pressure means movement weights should modify phase pressure, not just gate admission.
+`φ_i*(t) ∈ arg max_{φ in Φ_i} P_i^MP(φ,t)`
 
-### Paper 1 default requirement
-- For Paper 1 LTFS-alignment claims, PWMP in the active LTFS phase-selection path is **required**.
+subject to standard minimum-green and switching constraints.
 
-### Confirmed in code
-- `standard_blocks.py` supports weighted movement pressure through an optional movement field `w`.
-- `ltfs_blocks.py` contains urgency and weight helper functions, including:
-  - class urgency
-  - route urgency
-  - combined urgency
-  - a bounded PWMP movement weight function
-
-### Current implementation notes
-- `standard_blocks.py` supports movement weight `w` and `ltfs_blocks.py` provides urgency/weight helpers.
-- The active LTFS controller must inject these movement weights into `choose_phase()` for Paper 1-alignment claims.
-
-### Verify against paper
-- Whether the paper claims full PWMP in the main controller.
-- Whether weights are required for all intersections or only for selected movements near express gates.
-- Whether PWMP is core to Paper 1 or reserved for later work.
+### Important code-alignment requirement
+If the active controller claims to implement PWMP, it must not remain plain unweighted MP.
 
 ---
 
-## 6. Occupancy update
+## 4. Priority-Weighted Max Pressure (PWMP)
 
-### Intended meaning
-The express layer should have a bounded occupancy state to prevent overloading.
+PWMP is a required Paper 1 concept, not optional wording.
 
-### Confirmed in code
-- Occupancy update is:
+### Movement indicators
+Each movement may be labeled by deterministic indicators:
+- `I_gate(m)`: gate-feed movement
+- `I_dis(m)`: discharge movement from express back to surface
+- `I_exp(m)`: movement whose upstream link is on the express layer
 
-  `o_next = clamp01(o_prev + (inflow - outflow) / capacity)`
+### LTFS movement weight
+The bounded LTFS movement weight is:
 
-- Occupancy is clamped to `[0, 1]`.
-- Inflow and outflow are derived from changes in the set of vehicles currently on express edges.
+`w_m(t) = clip[1,w_max](1 + α I_gate(m) I[o_X(t) ≤ κ] + β I_dis(m) + η I_exp(m) + γ u_up(m,t))`
 
-### Current implementation notes
-- This is a simple corridor-level occupancy tracker.
-- It is not currently a lane-level, edge-level, or corridor-segment-level state.
+where:
+- `o_X(t)` is express occupancy
+- `κ` is the occupancy cap
+- `α, β, η, γ ≥ 0`
+- `u_up(m,t)` is mean upstream urgency
+- weights are clipped to `[1, w_max]`
 
-### Verify against paper
-- Whether the paper intends global express occupancy or corridor-specific occupancy.
-- Whether the paper requires a more detailed state definition than the current scalar implementation.
+### LTFS movement pressure
+`π_i,m^LTFS(t) = w_m(t) π_i,m(t)`
 
----
+### PWMP phase pressure
+`P_i^PWMP(φ,t) = Σ_{m in mov(φ)} w_m(t) π_i,m(t)`
 
-## 7. Express / elevated network logic
+Selected phase:
 
-### Confirmed in code
-- Express edges are auto-detected from the network using:
-  - lane/edge speed
-  - z-elevation
-  - connected-component filtering
-- Gate edges are auto-detected as surface-to-express feeders using:
-  - incoming topology
-  - controlled traffic-light movements
+`φ_i*(t) ∈ arg max_{φ in Φ_i} P_i^PWMP(φ,t)`
 
-### Verify against paper
-- Whether the paper expects manual corridor definition rather than automatic edge detection.
-- Whether the Yan'an elevated corridor is meant to be the primary express corridor in the paper experiments.
-- Whether all express entries should be treated equally or categorized by corridor / direction.
+subject to standard switching constraints.
 
----
+### Non-negotiable alignment rule
+If Paper 1 alignment is claimed, the active LTFS controller must actually inject `w_m(t)` into phase selection.
 
-## 8. Rerouting behavior
-
-### Confirmed in code
-- Denied vehicles can be rerouted to avoid the express layer.
-- Gate decisions are stored per vehicle so that admission is not re-decided blindly every step.
-
-### Paper 1 default requirement
-- Denied-vehicle rerouting is **optional** and **OFF by default** for Paper 1 default runs.
-- If enabled, it must be declared and reported as an **ablation toggle**.
-
-### Verify against paper
-- Whether rerouting denied vehicles is a required part of the LTFS design.
-- Whether rerouting should also occur for admitted vehicles under downstream congestion.
-- Whether rerouting frequency and adaptation interval should be part of the reported experiment design.
+Helper functions alone are not sufficient.
 
 ---
 
-## 9. Current controller classification
+## 5. Inter-layer gate rules
 
-Based on the current repo, the implementation is best described as:
+Paper 1 requires two non-RL gate rules.
 
-**LTFS-lite / partial LTFS**
+### TST gating
+Predicted remaining travel-time saving for vehicle `v` at time `t`:
 
-This means:
-- baseline Max-Pressure is active
-- express-layer detection is active
-- gate admission using TST is active
-- occupancy constraint is active
-- denied-vehicle rerouting is optional and OFF by default unless ablation-enabled
-- express speed bonus is optional and OFF by default unless ablation-enabled
-- UWA is optional and inactive by default
-- PWMP in active LTFS phase selection is required for Paper 1 LTFS-alignment claims
+`ΔT_v(t) = T̂_S(v,t) - T̂_X(v,t)`
 
-Use this wording unless a later audit proves stronger paper-to-code alignment.
+TST admission rule:
+- admit if `ΔT_v(t) ≥ Θ`
+- and `o_X(t) ≤ κ`
+
+Otherwise the vehicle remains on the surface path.
+
+### UWA gating
+UWA admission rule:
+- admit if `u_v(t) ΔT_v(t) ≥ Θ_u`
+- and `o_X(t) ≤ κ`
+
+### Important alignment rule
+If UWA is present in active code, the active code must compute and use:
+- `u_class`
+- `u_route`
+- combined urgency `u_v`
+- the weighted gate test `u_v ΔT_v`
+
+A dead or incomplete UWA branch does not count as implementation.
 
 ---
 
-## 10. Experiment design expectations
+## 6. Occupancy and gate constraints
 
-### Minimum comparison set
-The intended thesis comparison should include at least:
-- Baseline single-layer Max-Pressure
-- LTFS-enabled controller under the same demand and network conditions
+### Express occupancy
+Express-layer occupancy `o_X(t)` is updated from inflow and outflow and constrained to `[0,1]`.
 
-### Reproducible run IDs
-- Scenario matrix is codified in `notes/paper1_run_matrix.json` with IDs:
-  - `S0`, `S1`, `S2`, `S3`
-- Ablation matrix is codified in `notes/paper1_run_matrix.json` with IDs:
-  - `A0` to `A8`
-- Single-command runner:
-  - `sim/core/paper1_run.py --scenario <ID>`
-  - `sim/core/paper1_run.py --ablation <ID>`
-- All non-core toggles used in ablations must be explicit in run config.
+### Occupancy cap
+Gate admission must respect `o_X(t) ≤ κ`.
 
-### Minimum outputs to report
+### Gate safety
+Gate decisions must also obey:
+- merge capacity limits
+- diverge capacity limits
+- headway / safety constraints at entries
+
+### Optional extension
+Paper 1 allows, but does not require for the minimal core controller:
+- quota / credit fairness mechanisms
+- occupancy-penalized gate utility
+
+These should be treated as optional or ablation features unless explicitly activated.
+
+---
+
+## 7. Routing baselines
+
+Paper 1 baseline set includes:
+1. static shortest path routing
+2. dynamic travel-time routing with smoothed travel times
+3. tabular Q-routing
+
+### Dynamic routing
+Smoothed link travel time:
+`τ̂_e(t) = ξ τ_e^obs(t) + (1 - ξ) τ̂_e(t-1)`
+
+### Q-routing
+Tabular Q-routing update is part of the baseline comparison set, but Paper 1 remains non-deep and non-RL in controller design.
+
+---
+
+## 8. Scenarios and ablation structure
+
+### Main scenarios
+Paper 1 defines:
+- `S0`: single-layer baseline, no express layer
+- `S1`: LTFS baseline
+- `S2`: incident variant
+- `S3`: demand-surge variant
+
+### Ablation suite
+Paper 1 defines the ablation structure A0 to A8, including:
+- surface-only MP
+- LTFS with no gating
+- LTFS with TST + MP
+- LTFS with UWA + MP under different urgency definitions
+- LTFS with UWA + PWMP
+- occupancy-guarded full LTFS variants
+
+### Important alignment rule
+The code should be able to represent at least the logic needed for:
+- MP baseline
+- TST + MP
+- UWA + MP
+- UWA + PWMP
+- occupancy-guarded PWMP variant
+
+If these cannot be instantiated, Paper 1 alignment is incomplete.
+
+---
+
+## 9. Evaluation protocol requirements
+
+### Minimum experiment structure
+A typical experiment run should include:
+1. initialization / warm-up
+2. fixed simulation period
+3. per-vehicle and per-link logging
+4. repeated runs across seeds
+
+### Required output dimensions
+Paper 1 evaluation must cover:
+- efficiency
+- reliability
+- fairness
+- robustness
+- gate admission behavior
+- express-layer usage
+
+### Required metrics
+Core reported metrics include:
 - mean travel time
 - median travel time
-- high-percentile travel time such as T95
-- throughput / completed trips
-- fairness measure if used, such as Gini
-- express usage rate:
-  - share of trips that touch express edges
-  - share admitted at gates
-  - denied vs admitted counts
-
-All required Paper 1 outputs (including express usage share and gate admitted/rejected counts) must be emitted in one reproducible reporting step/script.
-
-### Important interpretation rule
-Do not claim LTFS improvement unless:
-- baseline and LTFS use comparable demand and network conditions
-- elevated-route usage is non-trivial
-- any parameter tuning is reported honestly
-
-### Verify against paper
-- exact scenario names
-- exact demand levels
-- exact required metrics
-- whether robustness, fairness, and ablations are mandatory in Paper 1
+- P95 travel time
+- buffer index
+- mean wasted time
+- Gini over class-wise TT or delay
+- gate admission
+- express use
 
 ---
 
-## 11. Non-negotiable requirements for paper alignment
+## 10. Policy-conditioned free-flow benchmark
 
-Before saying the controller matches the paper, verify that all of the following are true:
-1. The baseline Max-Pressure formulation matches the paper equations.
-2. The LTFS gate rule matches the paper definition of TST and any occupancy constraint.
-3. Any claimed urgency-weighted or priority-weighted logic is actually wired into the active controller.
-4. Any behavior that materially affects results, such as express speed bonuses or rerouting, is explicitly justified in the paper.
-5. The experiment comparisons use the same scenario logic described in the paper.
-6. Any non-core toggles (e.g., UWA, denied rerouting, express speed bonus) are explicitly declared and reported as ablations.
+Paper 1 requires policy-conditioned free-flow benchmarking.
+
+### Wasted time definition
+For policy `π`:
+
+`WT_π = TT_π - TT_π^ff`
+
+### Policy-conditioned free-flow
+`TT_π^ff(r,c)` must be computed from uncongested runs under the same policy logic `π`, not from:
+- a signal-free reference
+- a speed-limit-only reference
+- another policy’s free-flow run
+
+### Important alignment rule
+WT reporting is only paper-aligned if the free-flow reference is policy-consistent.
 
 ---
 
-## 12. Codex instructions for paper-to-code audit
+## 11. Safe controller labels for audit
 
-When auditing paper-to-code alignment:
+Use these labels during code audit:
+
+### Fully paper-aligned LTFS
+Use only if all of the following are true:
+- active PWMP weighting is wired into phase selection
+- TST is correctly implemented
+- UWA is correctly implemented if activated
+- occupancy update and cap are active
+- layer consistency is respected
+- policy-conditioned free-flow benchmarking is used
+- scenario and ablation logic can be represented
+
+### Partially aligned LTFS
+Use if:
+- MP + TST + occupancy are active
+- but PWMP or UWA is incomplete
+- or experiment structure cannot represent the paper design cleanly
+
+### Not paper-aligned
+Use if active code materially contradicts the equations or experiment structure above.
+
+---
+
+## 12. Audit instructions for Codex
+
+When auditing code against this file:
 - mark each concept as:
   - fully implemented
   - partially implemented
+  - intentionally optional
   - missing
   - ambiguous
-- separate:
-  - confirmed implementation facts
-  - inferred behavior
-  - paper requirements still needing verification
-- do not upgrade the controller description beyond "LTFS-lite / partial LTFS" unless the audit proves it.
+- distinguish helper-code availability from active-controller wiring
+- do not treat a branch as implemented unless it is callable and complete in the active controller
+- do not claim Paper 1 alignment if PWMP exists only in helper functions
+- do not claim Paper 1 alignment if UWA is incomplete but presented as active
