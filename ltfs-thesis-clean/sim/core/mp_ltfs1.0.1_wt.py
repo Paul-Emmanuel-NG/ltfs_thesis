@@ -46,6 +46,7 @@ MIN_GREEN = 10.0
 MAX_SIM_TIME = 7200.0
 
 LOG_CSV = str(RAW_OUTPUT_DIR / "mp_ltfs1.0.1_wt_trips.csv")
+DEBUG_CSV = str(RAW_OUTPUT_DIR / "ltfs_elevated_usage_debug.csv")
 
 # Auto footprint selection (Yan'an interchange)
 YANAN_ANCHOR_TLS = "cluster_479314640_850287516"
@@ -65,6 +66,8 @@ GATE_EDGES: set[str] = set()
 EXPRESS_CAPACITY = 400.0
 THETA = float(os.getenv("LTFS_THETA", "60.0"))
 KAPPA = float(os.getenv("LTFS_KAPPA", "0.85"))
+GATE_MODE = os.getenv("LTFS_GATE_MODE", "TST").strip().upper()
+THETA_U = float(os.getenv("LTFS_THETA_U", "0.0"))
 
 EXPRESS_SPEED_FAST = 1.3  # multiplier applied ONLY to admitted vehicles on express
 V_SURFACE_FF = 10.0
@@ -573,6 +576,16 @@ def run():
     veh_depart: dict[str, float] = {}
     veh_edges: dict[str, list[str]] = {}
     veh_class: dict[str, str] = {}
+    veh_used_elev: dict[str, bool] = {}
+
+    gate_approach_veh: set[str] = set()
+    gate_admit_count = 0
+    gate_reject_count = 0
+
+    completed_total = 0
+    completed_elev = 0
+    tt_elev: list[float] = []
+    tt_non_elev: list[float] = []
 
     # store original speedFactor so we do not change baseline vehicle types
     veh_speedfactor0: dict[str, float] = {}
@@ -610,6 +623,7 @@ def run():
 
                     admitted_to_express[vid] = False
                     gate_decided[vid] = False
+                    veh_used_elev[vid] = False
 
                 # arrivals (log)
                 for vid in traci.simulation.getArrivedIDList():
@@ -622,6 +636,12 @@ def run():
                         tt = t - dep
                         rkey = make_route_key(edges)
                         writer.writerow([vid, rkey, cls, dep, t, tt])
+                        completed_total += 1
+                        if veh_used_elev.pop(vid, False):
+                            completed_elev += 1
+                            tt_elev.append(tt)
+                        else:
+                            tt_non_elev.append(tt)
 
                     admitted_to_express.pop(vid, None)
                     gate_decided.pop(vid, None)
@@ -646,17 +666,21 @@ def run():
                             gate_vids = traci.edge.getLastStepVehicleIDs(gate_edge)
                         except Exception:
                             gate_vids = []
+                        gate_approach_veh.update(gate_vids)
                         for vid in gate_vids:
                             if gate_decided.get(vid, False):
                                 continue
                             try:
                                 delta_t = estimate_delta_t_for_vehicle(vid)
-                                u_v = vehicle_combined_urgency(vid, EXPRESS_EDGES, t)
                             except Exception:
                                 # Vehicle may have arrived/departed between queries
                                 continue
 
                             if GATE_MODE == "UWA":
+                                try:
+                                    u_v = vehicle_combined_urgency(vid, EXPRESS_EDGES, t)
+                                except Exception:
+                                    continue
                                 allow = (u_v * delta_t >= THETA_U) and (o_X <= KAPPA)
                             else:
                                 # Default to TST
@@ -664,6 +688,10 @@ def run():
 
                             admitted_to_express[vid] = allow
                             gate_decided[vid] = True
+                            if allow:
+                                gate_admit_count += 1
+                            else:
+                                gate_reject_count += 1
 
                             if not allow:
                                 maybe_reroute_denied_vehicle(vid)
@@ -677,6 +705,7 @@ def run():
 
                     base_sf = veh_speedfactor0.get(vid, 1.0)
                     if allowed and edge_id in EXPRESS_EDGES:
+                        veh_used_elev[vid] = True
                         traci.vehicle.setSpeedFactor(vid, base_sf * EXPRESS_SPEED_FAST)
                     else:
                         traci.vehicle.setSpeedFactor(vid, base_sf)
@@ -694,6 +723,32 @@ def run():
 
         finally:
             traci.close()
+            elev_pct = (100.0 * completed_elev / completed_total) if completed_total > 0 else 0.0
+            mean_tt_elev = (sum(tt_elev) / len(tt_elev)) if tt_elev else float("nan")
+            mean_tt_non_elev = (sum(tt_non_elev) / len(tt_non_elev)) if tt_non_elev else float("nan")
+            with open(DEBUG_CSV, "w", newline="") as dbg:
+                w = csv.writer(dbg)
+                w.writerow([
+                    "completed_trips",
+                    "completed_trips_with_elevated",
+                    "pct_trips_with_elevated",
+                    "vehicles_approaching_entry_gates",
+                    "gate_admitted",
+                    "gate_rejected",
+                    "mean_tt_elevated_trips_s",
+                    "mean_tt_non_elevated_trips_s",
+                ])
+                w.writerow([
+                    completed_total,
+                    completed_elev,
+                    elev_pct,
+                    len(gate_approach_veh),
+                    gate_admit_count,
+                    gate_reject_count,
+                    mean_tt_elev,
+                    mean_tt_non_elev,
+                ])
+            print(f"[ltfs] Elevated usage debug written: {DEBUG_CSV}")
 
 
 if __name__ == "__main__":
