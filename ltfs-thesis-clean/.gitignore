@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+desktop.ini
+*.zip
+.env
+.venv/
+venv/
+outputs/tables/
+outputs/figures/*.tmp
+outputs/raw/*.tmp
