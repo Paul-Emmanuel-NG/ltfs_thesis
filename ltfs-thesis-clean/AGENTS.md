@@ -16,3 +16,4 @@ This repository contains thesis simulations for a layered traffic flow system us
   - portability/workflow issues
   - paper-to-code mismatches
 - Do not optimize results unfairly. Any performance-improving edit must preserve fair comparison with the baseline.
+- For paper-to-code alignment, read `notes/paper_controller_spec.md` first and treat it as the working text specification.
