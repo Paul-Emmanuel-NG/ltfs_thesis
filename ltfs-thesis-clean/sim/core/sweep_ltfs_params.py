@@ -16,16 +16,23 @@ import os
 import sys
 import subprocess
 import statistics
+from pathlib import Path
 
 from metrics_wt_all import (
     load_free_flow,
     load_trips,
     percentile,
     gini,
-    FREE_FLOW_CSV,
-    BASELINE_CSV,
-    LTFS_CSV,
+    FREEFLOW_MP_CSV,
+    BASELINE_TRIPS_CSV,
+    LTFS_TRIPS_CSV,
+    RAW_OUTPUT_DIR,
 )
+
+CORE_DIR = Path(__file__).resolve().parent
+FREE_FLOW_CSV = FREEFLOW_MP_CSV
+BASELINE_CSV = BASELINE_TRIPS_CSV
+LTFS_CSV = LTFS_TRIPS_CSV
 
 
 # Grid of parameters to try
@@ -100,7 +107,8 @@ def main():
     print()
 
     # 3) Open CSV for writing results
-    out_path = "ltfs_sweep_results.csv"
+    RAW_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = str(RAW_OUTPUT_DIR / "ltfs_sweep_results.csv")
     new_file = not os.path.exists(out_path)
 
     with open(out_path, "a", newline="") as f:
@@ -141,9 +149,10 @@ def main():
 
                 # Run LTFS controller (this overwrites mp_ltfs1.0.1_wt_trips.csv)
                 subprocess.run(
-                    [sys.executable, "mp_ltfs1.0.1_wt.py"],
+                    [sys.executable, str(CORE_DIR / "mp_ltfs1.0.1_wt.py")],
                     check=True,
                     env=env,
+                    cwd=str(CORE_DIR),
                 )
 
                 # Load LTFS trips for this parameter pair
