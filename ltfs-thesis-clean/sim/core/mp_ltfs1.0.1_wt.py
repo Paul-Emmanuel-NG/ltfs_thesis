@@ -27,7 +27,13 @@ import sumolib
 from sumolib import checkBinary
 
 from standard_blocks import choose_phase
-from ltfs_blocks import tst_delta_t, tst_gate_decision, update_occupancy
+from ltfs_blocks import (
+    tst_delta_t,
+    tst_gate_decision,
+    update_occupancy,
+    urgency_from_type_id,
+    pwmp_weight_full,
+)
 from route_key import make_route_key
 
 # ----------------
@@ -69,13 +75,21 @@ KAPPA = float(os.getenv("LTFS_KAPPA", "0.85"))
 GATE_MODE = os.getenv("LTFS_GATE_MODE", "TST").strip().upper()
 THETA_U = float(os.getenv("LTFS_THETA_U", "0.0"))
 
-EXPRESS_SPEED_FAST = 1.3  # multiplier applied ONLY to admitted vehicles on express
+# Paper-1 alignment defaults:
+# - keep active gate rule unambiguously TST
+# - keep result-affecting extras (speed bonus, denied reroute) OFF unless explicitly enabled
+if GATE_MODE != "TST":
+    print(f"[ltfs] WARNING: LTFS_GATE_MODE={GATE_MODE} requested, but Paper-1 mode supports only TST. Forcing TST.")
+    GATE_MODE = "TST"
+
+ENABLE_EXPRESS_SPEED_BONUS = os.getenv("LTFS_ENABLE_EXPRESS_SPEED_BONUS", "0").strip() == "1"
+EXPRESS_SPEED_FAST = 1.3  # multiplier applied ONLY when speed bonus flag is enabled
 V_SURFACE_FF = 10.0
 V_EXPRESS_FF = 20.0
 GATE_UPDATE_PERIOD = 5
 
 # If True, denied vehicles are rerouted to avoid express edges at the gate
-REROUTE_DENIED = True
+REROUTE_DENIED = os.getenv("LTFS_ENABLE_DENIED_REROUTE", "0").strip() == "1"
 
 EDGE_LENGTH_CACHE: dict[str, float] = {}
 
@@ -203,6 +217,22 @@ def edge_queue(edge_id: str) -> float:
     return float(traci.edge.getLastStepVehicleNumber(edge_id))
 
 
+def edge_mean_urgency(edge_id: str) -> float:
+    try:
+        vids = traci.edge.getLastStepVehicleIDs(edge_id)
+    except Exception:
+        vids = []
+    if not vids:
+        return 0.4
+    us = []
+    for v in vids:
+        try:
+            us.append(urgency_from_type_id(traci.vehicle.getTypeID(v)))
+        except Exception:
+            us.append(0.4)
+    return float(sum(us) / max(1, len(us)))
+
+
 def _is_green(ch: str) -> bool:
     return ch in ("G", "g")
 
@@ -280,17 +310,31 @@ def build_tls_config_from_network(tls_ids: list[str]) -> dict:
     return tls_config
 
 
-def choose_phase_for_tls(tls_id: str, tls_config: dict) -> int:
+def choose_phase_for_tls(tls_id: str, tls_config: dict, o_x: float) -> int:
     cfg = tls_config[tls_id]
     phase_to_movements = {}
     for phase_idx, movement_defs in cfg["phases"].items():
         movements = []
         for m in movement_defs:
+            up_edge = m["up_edge"]
+            down_edges = m["down_edges"]
+            is_gate_feed = up_edge in GATE_EDGES
+            is_express_up = up_edge in EXPRESS_EDGES
+            is_discharge = is_express_up and any((de not in EXPRESS_EDGES) for de in down_edges)
+            w = pwmp_weight_full(
+                is_gate_feed=is_gate_feed,
+                is_discharge=is_discharge,
+                is_express_up=is_express_up,
+                mean_edge_urgency=edge_mean_urgency(up_edge),
+                o_x=o_x,
+                kappa=KAPPA,
+            )
             movements.append(
                 {
-                    "q_up": edge_queue(m["up_edge"]),
-                    "q_down_list": [edge_queue(e) for e in m["down_edges"]],
+                    "q_up": edge_queue(up_edge),
+                    "q_down_list": [edge_queue(e) for e in down_edges],
                     "rho_list": m["turn_probs"],
+                    "w": w,
                 }
             )
         phase_to_movements[phase_idx] = movements
@@ -676,15 +720,8 @@ def run():
                                 # Vehicle may have arrived/departed between queries
                                 continue
 
-                            if GATE_MODE == "UWA":
-                                try:
-                                    u_v = vehicle_combined_urgency(vid, EXPRESS_EDGES, t)
-                                except Exception:
-                                    continue
-                                allow = (u_v * delta_t >= THETA_U) and (o_X <= KAPPA)
-                            else:
-                                # Default to TST
-                                allow = tst_gate_decision(delta_t, o_X, THETA, KAPPA)
+                            # Paper-1 active controller mode: TST gate rule
+                            allow = tst_gate_decision(delta_t, o_X, THETA, KAPPA)
 
                             admitted_to_express[vid] = allow
                             gate_decided[vid] = True
@@ -704,7 +741,7 @@ def run():
                         continue
 
                     base_sf = veh_speedfactor0.get(vid, 1.0)
-                    if allowed and edge_id in EXPRESS_EDGES:
+                    if ENABLE_EXPRESS_SPEED_BONUS and allowed and edge_id in EXPRESS_EDGES:
                         veh_used_elev[vid] = True
                         traci.vehicle.setSpeedFactor(vid, base_sf * EXPRESS_SPEED_FAST)
                     else:
@@ -715,7 +752,7 @@ def run():
                     time_in_phase[tls_id] += STEP_LENGTH
                     if time_in_phase[tls_id] < MIN_GREEN:
                         continue
-                    best_phase = choose_phase_for_tls(tls_id, tls_config)
+                    best_phase = choose_phase_for_tls(tls_id, tls_config, o_X)
                     if best_phase != current_phase[tls_id]:
                         traci.trafficlight.setPhase(tls_id, best_phase)
                         current_phase[tls_id] = best_phase

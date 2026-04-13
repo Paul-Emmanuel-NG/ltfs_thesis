@@ -7,7 +7,7 @@
 
     <input>
         <net-file value="yanan_elevated.net.xml"/>
-        <route-files value="osm.bicycle.rou.xml,osm.bus.rou.xml,osm.motorcycle.rou.xml,osm.passenger.rou.xml,osm.pedestrian.rou.xml,osm.truck.rou.xml"/>
+        <route-files value="../routes/osm.bicycle.rou.xml,../routes/osm.bus.rou.xml,../routes/osm.motorcycle.rou.xml,../routes/osm.passenger.rou.xml,../routes/osm.pedestrian.rou.xml,../routes/osm.truck.rou.xml"/>
         <additional-files value="osm.poly.xml.gz,output.add.xml"/>
     </input>
 
