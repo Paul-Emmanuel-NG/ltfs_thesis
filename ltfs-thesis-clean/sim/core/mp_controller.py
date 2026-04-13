@@ -25,6 +25,7 @@ Notes:
 """
 
 import os
+from pathlib import Path
 import traci
 from sumolib import checkBinary
 
@@ -34,7 +35,9 @@ from ltfs_blocks import urgency_from_type_id
 # ----------------
 # Configuration
 # ----------------
-SUMO_CFG = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\osm.sumocfg"
+CORE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CORE_DIR.parents[1]
+SUMO_CFG = str(PROJECT_ROOT / "sim" / "network" / "osm.sumocfg")
 
 USE_GUI = True
 STEP_LENGTH = 1.0
