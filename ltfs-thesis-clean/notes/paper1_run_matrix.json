@@ -1,0 +1,115 @@
+{
+  "scenarios": [
+    {
+      "id": "S0",
+      "description": "Paper-1 default scenario (default LTFS parameters).",
+      "env": {},
+      "expected_outputs": [
+        "outputs/raw/baseline_wt_trips.csv",
+        "outputs/raw/mp_ltfs1.0.1_wt_trips.csv",
+        "outputs/raw/ltfs_elevated_usage_debug.csv"
+      ]
+    },
+    {
+      "id": "S1",
+      "description": "Scenario with lower TST threshold.",
+      "env": {
+        "LTFS_THETA": "30.0"
+      },
+      "expected_outputs": [
+        "outputs/raw/baseline_wt_trips.csv",
+        "outputs/raw/mp_ltfs1.0.1_wt_trips.csv",
+        "outputs/raw/ltfs_elevated_usage_debug.csv"
+      ]
+    },
+    {
+      "id": "S2",
+      "description": "Scenario with tighter occupancy cap.",
+      "env": {
+        "LTFS_KAPPA": "0.70"
+      },
+      "expected_outputs": [
+        "outputs/raw/baseline_wt_trips.csv",
+        "outputs/raw/mp_ltfs1.0.1_wt_trips.csv",
+        "outputs/raw/ltfs_elevated_usage_debug.csv"
+      ]
+    },
+    {
+      "id": "S3",
+      "description": "Scenario with stricter gate rule and higher occupancy cap.",
+      "env": {
+        "LTFS_THETA": "90.0",
+        "LTFS_KAPPA": "0.95"
+      },
+      "expected_outputs": [
+        "outputs/raw/baseline_wt_trips.csv",
+        "outputs/raw/mp_ltfs1.0.1_wt_trips.csv",
+        "outputs/raw/ltfs_elevated_usage_debug.csv"
+      ]
+    }
+  ],
+  "ablations": [
+    {
+      "id": "A0",
+      "description": "Paper-1 default LTFS (non-core toggles OFF).",
+      "env": {}
+    },
+    {
+      "id": "A1",
+      "description": "Enable express speed bonus ablation.",
+      "env": {
+        "LTFS_ENABLE_EXPRESS_SPEED_BONUS": "1"
+      }
+    },
+    {
+      "id": "A2",
+      "description": "Enable denied-reroute ablation.",
+      "env": {
+        "LTFS_ENABLE_DENIED_REROUTE": "1"
+      }
+    },
+    {
+      "id": "A3",
+      "description": "Enable both non-core toggles.",
+      "env": {
+        "LTFS_ENABLE_EXPRESS_SPEED_BONUS": "1",
+        "LTFS_ENABLE_DENIED_REROUTE": "1"
+      }
+    },
+    {
+      "id": "A4",
+      "description": "Lower TST threshold ablation.",
+      "env": {
+        "LTFS_THETA": "30.0"
+      }
+    },
+    {
+      "id": "A5",
+      "description": "Higher TST threshold ablation.",
+      "env": {
+        "LTFS_THETA": "90.0"
+      }
+    },
+    {
+      "id": "A6",
+      "description": "Lower occupancy-cap ablation.",
+      "env": {
+        "LTFS_KAPPA": "0.70"
+      }
+    },
+    {
+      "id": "A7",
+      "description": "Higher occupancy-cap ablation.",
+      "env": {
+        "LTFS_KAPPA": "0.95"
+      }
+    },
+    {
+      "id": "A8",
+      "description": "Request UWA mode (controller keeps TST active by Paper-1 default policy).",
+      "env": {
+        "LTFS_GATE_MODE": "UWA"
+      }
+    }
+  ]
+}

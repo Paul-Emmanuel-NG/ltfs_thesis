@@ -27,11 +27,8 @@ The baseline is a **single-layer Max-Pressure traffic signal controller** on the
 
 ### Current implementation notes
 - `standard_blocks.py` supports an optional movement weight `w`.
-- In the current LTFS controller wiring, phase construction appears to pass only:
-  - `q_up`
-  - `q_down_list`
-  - `rho_list`
-- Therefore, active phase selection currently behaves like **plain Max-Pressure**, unless another controller explicitly injects weights.
+- In the active LTFS controller path, movement weight `w` is injected for PWMP-enabled phase selection.
+- The baseline controller remains plain Max-Pressure unless a controller explicitly injects weights.
 
 ### Verify against paper
 - Whether the paper defines the baseline strictly as plain Max-Pressure or as a stronger baseline variant.
@@ -59,6 +56,7 @@ The LTFS controller extends the baseline by introducing a logical **express / el
   - connected express components retained
 - Gate decisions are evaluated periodically, not continuously every simulation micro-step.
 - The controller keeps a global scalar express occupancy estimate `o_X`.
+- Express speed bonus is **optional** and **OFF by default** for Paper 1 default runs; if enabled, it is an ablation toggle.
 
 ### Verify against paper
 - Whether the paper intends a logical express layer only, or a more explicit multi-layer infrastructure abstraction.
@@ -106,14 +104,12 @@ where:
 UWA appears to be an urgency-weighted admission mode.
 
 ### Confirmed in code
-- The LTFS controller contains a branch for a UWA-style rule of the form:
-
-  `allow = (u_v * ΔT >= Θ_U) and (o_X <= κ)`
+- UWA-related helper concepts exist in the repo, but UWA is not active in the default Paper 1 runtime path.
 
 ### Current implementation notes
 - The current repo contains urgency helper functions in `ltfs_blocks.py`.
-- In the inspected controller version, UWA-related variables and wiring look incomplete or inconsistent.
-- UWA should therefore be treated as **partially implemented / ambiguous** unless verified in the current active branch.
+- For **Paper 1 default runs**, UWA is **optional** and **inactive by default**.
+- Any UWA-enabled run must be treated as an **explicit ablation**, not the default Paper 1 controller.
 
 ### Verify against paper
 - Whether UWA is a required part of the paper contribution or only an optional extension.
@@ -127,6 +123,9 @@ UWA appears to be an urgency-weighted admission mode.
 ### Intended meaning
 Priority-weighted Max-Pressure means movement weights should modify phase pressure, not just gate admission.
 
+### Paper 1 default requirement
+- For Paper 1 LTFS-alignment claims, PWMP in the active LTFS phase-selection path is **required**.
+
 ### Confirmed in code
 - `standard_blocks.py` supports weighted movement pressure through an optional movement field `w`.
 - `ltfs_blocks.py` contains urgency and weight helper functions, including:
@@ -136,10 +135,8 @@ Priority-weighted Max-Pressure means movement weights should modify phase pressu
   - a bounded PWMP movement weight function
 
 ### Current implementation notes
-- The active LTFS phase-selection wiring currently appears **not** to inject these weights into `choose_phase()`.
-- Therefore, the repo currently looks like:
-  - **weight-aware helper code exists**
-  - but **full PWMP is not yet clearly wired into active phase selection**
+- `standard_blocks.py` supports movement weight `w` and `ltfs_blocks.py` provides urgency/weight helpers.
+- The active LTFS controller must inject these movement weights into `choose_phase()` for Paper 1-alignment claims.
 
 ### Verify against paper
 - Whether the paper claims full PWMP in the main controller.
@@ -195,6 +192,10 @@ The express layer should have a bounded occupancy state to prevent overloading.
 - Denied vehicles can be rerouted to avoid the express layer.
 - Gate decisions are stored per vehicle so that admission is not re-decided blindly every step.
 
+### Paper 1 default requirement
+- Denied-vehicle rerouting is **optional** and **OFF by default** for Paper 1 default runs.
+- If enabled, it must be declared and reported as an **ablation toggle**.
+
 ### Verify against paper
 - Whether rerouting denied vehicles is a required part of the LTFS design.
 - Whether rerouting should also occur for admitted vehicles under downstream congestion.
@@ -213,8 +214,10 @@ This means:
 - express-layer detection is active
 - gate admission using TST is active
 - occupancy constraint is active
-- denied-vehicle rerouting is active
-- full urgency-weighted or priority-weighted signal control is not yet clearly active in the main controller
+- denied-vehicle rerouting is optional and OFF by default unless ablation-enabled
+- express speed bonus is optional and OFF by default unless ablation-enabled
+- UWA is optional and inactive by default
+- PWMP in active LTFS phase selection is required for Paper 1 LTFS-alignment claims
 
 Use this wording unless a later audit proves stronger paper-to-code alignment.
 
@@ -227,6 +230,16 @@ The intended thesis comparison should include at least:
 - Baseline single-layer Max-Pressure
 - LTFS-enabled controller under the same demand and network conditions
 
+### Reproducible run IDs
+- Scenario matrix is codified in `notes/paper1_run_matrix.json` with IDs:
+  - `S0`, `S1`, `S2`, `S3`
+- Ablation matrix is codified in `notes/paper1_run_matrix.json` with IDs:
+  - `A0` to `A8`
+- Single-command runner:
+  - `sim/core/paper1_run.py --scenario <ID>`
+  - `sim/core/paper1_run.py --ablation <ID>`
+- All non-core toggles used in ablations must be explicit in run config.
+
 ### Minimum outputs to report
 - mean travel time
 - median travel time
@@ -237,6 +250,8 @@ The intended thesis comparison should include at least:
   - share of trips that touch express edges
   - share admitted at gates
   - denied vs admitted counts
+
+All required Paper 1 outputs (including express usage share and gate admitted/rejected counts) must be emitted in one reproducible reporting step/script.
 
 ### Important interpretation rule
 Do not claim LTFS improvement unless:
@@ -260,6 +275,7 @@ Before saying the controller matches the paper, verify that all of the following
 3. Any claimed urgency-weighted or priority-weighted logic is actually wired into the active controller.
 4. Any behavior that materially affects results, such as express speed bonuses or rerouting, is explicitly justified in the paper.
 5. The experiment comparisons use the same scenario logic described in the paper.
+6. Any non-core toggles (e.g., UWA, denied rerouting, express speed bonus) are explicitly declared and reported as ablations.
 
 ---
 

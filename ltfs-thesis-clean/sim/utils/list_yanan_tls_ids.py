@@ -5,12 +5,15 @@
 import csv
 import math
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Dict, Tuple, Set, List, Optional
 
-NET_FILE = r"C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\yanan_elevated.net.xml"
+UTILS_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = UTILS_DIR.parents[1]
+NET_FILE = str(PROJECT_ROOT / "sim" / "network" / "yanan_elevated.net.xml")
 ANCHOR_TLS = "cluster_479314640_850287516"   # your known Yan’an center TLS
 RADIUS_M = 400.0                             # tune (e.g., 200–800)
-OUT_CSV = "yanan_tls_ids.csv"
+OUT_CSV = str(PROJECT_ROOT / "outputs" / "raw" / "yanan_tls_ids.csv")
 
 
 def _dist(a: Tuple[float, float], b: Tuple[float, float]) -> float:

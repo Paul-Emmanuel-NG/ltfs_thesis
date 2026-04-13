@@ -34,6 +34,7 @@ FREEFLOW_LTFS_CSV = str(RAW_OUTPUT_DIR / "freeflow_ltfs.csv")
 
 BASELINE_TRIPS_CSV = str(RAW_OUTPUT_DIR / "baseline_wt_trips.csv")
 LTFS_TRIPS_CSV = str(RAW_OUTPUT_DIR / "mp_ltfs1.0.1_wt_trips.csv")
+LTFS_DEBUG_CSV = str(RAW_OUTPUT_DIR / "ltfs_elevated_usage_debug.csv")
 
 
 # ----------------
@@ -154,6 +155,46 @@ def load_trips(path: str, free_map: Dict[Tuple[str, str], float]):
     return tt_list, wt_list, used, skipped
 
 
+def count_completed_trips(path: str) -> int:
+    with open(path, newline="") as f:
+        r = csv.DictReader(f)
+        return sum(1 for _ in r)
+
+
+def load_ltfs_debug(path: str) -> Dict[str, float]:
+    with open(path, newline="") as f:
+        r = csv.DictReader(f)
+        row = next(r, None)
+    if row is None:
+        return {}
+    out: Dict[str, float] = {}
+    for k, v in row.items():
+        try:
+            out[k] = float(v)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def require_ltfs_debug_outputs(path: str) -> Dict[str, float]:
+    """
+    Required Paper-1 express usage outputs from LTFS debug:
+      - pct_trips_with_elevated
+      - gate_admitted
+      - gate_rejected
+    Fail fast if missing or non-numeric so reporting remains reproducible.
+    """
+    dbg = load_ltfs_debug(path)
+    required = ["pct_trips_with_elevated", "gate_admitted", "gate_rejected"]
+    missing = [k for k in required if k not in dbg or not math.isfinite(dbg[k])]
+    if missing:
+        raise ValueError(
+            f"LTFS debug output missing required Paper-1 fields {missing} in {path}. "
+            "Run LTFS controller to regenerate ltfs_elevated_usage_debug.csv before reporting."
+        )
+    return dbg
+
+
 def print_metrics(label: str, tt_list: List[float], wt_list: List[float], used: int, skipped: int):
     print(f"=== Metrics for {label} ===")
     print(f"Trips with free-flow match: {used}")
@@ -213,6 +254,23 @@ def main():
 
     tt_l, wt_l, used_l, skipped_l = load_trips(LTFS_TRIPS_CSV, ff_ltfs)
     print_metrics("LTFS TST (v1.0.1)", tt_l, wt_l, used_l, skipped_l)
+
+    baseline_completed = count_completed_trips(BASELINE_TRIPS_CSV)
+    ltfs_completed = count_completed_trips(LTFS_TRIPS_CSV)
+    print("=== Required Paper-1 reporting (single script output) ===")
+    print(f"Baseline throughput/completed trips: {baseline_completed}")
+    print(f"LTFS throughput/completed trips:     {ltfs_completed}")
+
+    if not Path(LTFS_DEBUG_CSV).exists():
+        raise FileNotFoundError(
+            f"Required LTFS debug output not found: {LTFS_DEBUG_CSV}. "
+            "Run LTFS controller first so required Paper-1 express usage metrics are generated."
+        )
+    dbg = require_ltfs_debug_outputs(LTFS_DEBUG_CSV)
+    print(f"LTFS express usage share (% trips with elevated): {dbg['pct_trips_with_elevated']}")
+    print(f"LTFS gate admitted: {dbg['gate_admitted']}")
+    print(f"LTFS gate rejected: {dbg['gate_rejected']}")
+    print()
 
     if tt_b and tt_l:
         mean_b = statistics.mean(tt_b)

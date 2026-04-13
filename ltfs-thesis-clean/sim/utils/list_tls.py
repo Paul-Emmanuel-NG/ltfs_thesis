@@ -1,7 +1,10 @@
 import traci
+from pathlib import Path
 from sumolib import checkBinary
 
-SUMO_CFG = r"C:\Users\YOURNAME\SUMO\2025-12-02-xx-xx-xx\osm.sumocfg"
+UTILS_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = UTILS_DIR.parents[1]
+SUMO_CFG = str(PROJECT_ROOT / "sim" / "network" / "osm.sumocfg")
 
 def main():
     traci.start([
