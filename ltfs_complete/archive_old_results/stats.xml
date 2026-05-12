@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-01-08T11:46:49.716112+08:00 by Eclipse SUMO GUI 1.25.0
+<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\yanan_elevated.net.xml"/>
+        <route-files value="C:\Users\akinw\AppData\Local\Temp\freeflow_routes_eti8u88x\osm.bicycle.stretchedx10.rou.xml,C:\Users\akinw\AppData\Local\Temp\freeflow_routes_eti8u88x\osm.bus.stretchedx10.rou.xml,C:\Users\akinw\AppData\Local\Temp\freeflow_routes_eti8u88x\osm.motorcycle.stretchedx10.rou.xml,C:\Users\akinw\AppData\Local\Temp\freeflow_routes_eti8u88x\osm.passenger.stretchedx10.rou.xml,C:\Users\akinw\AppData\Local\Temp\freeflow_routes_eti8u88x\osm.pedestrian.stretchedx10.rou.xml,C:\Users\akinw\AppData\Local\Temp\freeflow_routes_eti8u88x\osm.truck.stretchedx10.rou.xml"/>
+        <additional-files value="C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\osm.poly.xml.gz,C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\output.add.xml"/>
+    </input>
+
+    <output>
+        <tripinfo-output value="C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\tripinfos.xml"/>
+        <statistic-output value="C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\stats.xml"/>
+    </output>
+
+    <time>
+        <end value="55999.5"/>
+        <step-length value="1.0"/>
+    </time>
+
+    <processing>
+        <ignore-route-errors value="true"/>
+        <tls.actuated.jam-threshold value="30"/>
+    </processing>
+
+    <routing>
+        <device.rerouting.adaptation-steps value="18"/>
+        <device.rerouting.adaptation-interval value="10"/>
+    </routing>
+
+    <report>
+        <verbose value="true"/>
+        <duration-log.statistics value="true"/>
+        <no-step-log value="true"/>
+    </report>
+
+    <traci_server>
+        <remote-port value="54795"/>
+    </traci_server>
+
+    <gui_only>
+        <gui-settings-file value="C:\Users\akinw\Desktop\thesis\2025-12-02-16-58-29\osm.view.xml"/>
+    </gui_only>
+
+</sumoConfiguration>
+-->
+
+<statistics xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/statistic_file.xsd">
+    <performance clockBegin="4484.02" clockEnd="14764.69" clockDuration="10280.67" traciDuration="48.31" realTimeFactor="5.45" vehicleUpdatesPerSecond="55942.59" personUpdatesPerSecond="19.21" begin="0.00" end="56000.00" duration="56000.00"/>
+    <vehicles loaded="60807" inserted="50892" running="6843" waiting="9915"/>
+    <teleports total="114887" jam="66360" yield="42306" wrongLane="6181"/>
+    <safety collisions="40" emergencyStops="0" emergencyBraking="9"/>
+    <persons loaded="1068" running="0" jammed="4"/>
+    <personTeleports total="0" abortWait="0" wrongDest="0"/>
+    <vehicleTripStatistics count="40478" routeLength="1760.00" speed="0.49" duration="10153.71" waitingTime="8872.28" timeLoss="9187.40" departDelay="2117.92" departDelayWaiting="-1.00" totalTravelTime="411001906.00" totalDepartDelay="88506490.80"/>
+    <bikeTripStatistics count="3571" routeLength="1179.67" speed="0.71" duration="15588.35" waitingTime="14827.01" timeLoss="15307.97" departDelay="777.74" totalTravelTime="55666007.00"/>
+    <pedestrianStatistics number="1068" routeLength="226.58" duration="184.93" timeLoss="20.90"/>
+    <rideStatistics number="0"/>
+    <transportStatistics number="0"/>
+</statistics>

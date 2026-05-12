@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+    <input>
+        <net-file value="yanan_elevated.net.xml"/>
+        <route-files value="light.passenger.rou.xml,light.bus.rou.xml,light.truck.rou.xml"/>
+        <additional-files value="osm.poly.xml.gz,output.add.xml"/>
+    </input>
+    <output>
+        <tripinfo-output value="tripinfos_light.xml"/>
+        <statistic-output value="stats_light.xml"/>
+    </output>
+    <processing>
+        <ignore-route-errors value="true"/>
+        <tls.actuated.jam-threshold value="30"/>
+    </processing>
+    <report>
+        <verbose value="true"/>
+        <duration-log.statistics value="true"/>
+        <no-step-log value="true"/>
+    </report>
+    <gui_only>
+        <gui-settings-file value="osm.view.xml"/>
+    </gui_only>
+</sumoConfiguration>
